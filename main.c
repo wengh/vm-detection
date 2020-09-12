@@ -11,6 +11,8 @@
 //check to see if operating system is windows
 #ifdef _WIN32
 #include <windows.h> //include <windows.h> for win operating systems only
+#define popen _popen
+#define pclose _pclose
 //if not windows, assume unix based system
 #else
 #include <unistd.h> //include <unistd.h> for unix systems only.
@@ -24,8 +26,55 @@ virtual machine.
 int vm_score = 0;
 
 void number_of_cores();
-void run_command();
-void registry_check();
+void registry_check(); //end of number_of_cores()
+
+
+/* run_command serves the purposes of running terminal commands
+   within both linux and windows environments.
+   We use this for dmesg, dmidecode, and systeminfo.
+   
+   run_command() takes three parameters: cmd, detphrase, and dp_length.
+   cmd is the command to run such as systeminfo or dmesg or dmidecode
+   
+   detphrase is the string to check for within the command. If we run
+   dmidecode and we're looking for "VMWARE", the detphrase is "VMWARE".
+   
+   dp_length is the length of the string we want to specify. This allows
+   us to take substrings of the system output in order to have cleaner, 
+   more readable code. 
+   
+   The benefits of using this run_command() function over a system() call
+   is that it allows us to save the output of system calls as well as take
+   substrings.
+*/
+void run_command(char *cmd, char *detphrase, int dp_length){
+    #define BUFSIZE 128
+    char buf[BUFSIZE];
+    FILE *fp;
+
+    /*popen() is essentially the same as system()
+    but it saves the output to a file. If the output
+    is null, the command didn't work.
+    */
+    if((fp = popen(cmd, "r")) == NULL){
+        printf("Error");
+    }
+
+    if(fgets(buf, BUFSIZE, fp) != NULL){
+    	int size = (dp_length + 1) * sizeof(char);
+        char* detection = malloc(size); //one extra char for null terminator
+        strncpy_s(detection, size, detphrase, dp_length);
+        detection[dp_length] = '\0'; //place the null terminator
+
+        if(strcmp(detphrase, detection) == 0){ //0 means detphrase = detection
+            vm_score++; //increment the vm_score variable.
+        }
+    }
+
+    if(pclose(fp)){
+        printf("Command not found or exited with error status \n");
+    }
+}
 
 int main(int argc, const char * argv[]) {
     /*run number_of_cores() function first, 
@@ -53,7 +102,9 @@ int main(int argc, const char * argv[]) {
     if(vm_score < 3){
       printf("no virtual machine detected");
     }
-    printf("Virtual Machine detected.");
+    else{
+		printf("Virtual Machine detected.");
+    }
 	   
 //The code below only runs if we are not on a Windows-based system. Only tested with openSUSE.
 #else
@@ -100,54 +151,6 @@ void number_of_cores() {
         vm_score++;
     }
 #endif
-} //end of number_of_cores()
-
-
-/* run_command serves the purposes of running terminal commands
-   within both linux and windows environments.
-   We use this for dmesg, dmidecode, and systeminfo.
-   
-   run_command() takes three parameters: cmd, detphrase, and dp_length.
-   cmd is the command to run such as systeminfo or dmesg or dmidecode
-   
-   detphrase is the string to check for within the command. If we run
-   dmidecode and we're looking for "VMWARE", the detphrase is "VMWARE".
-   
-   dp_length is the length of the string we want to specify. This allows
-   us to take substrings of the system output in order to have cleaner, 
-   more readable code. 
-   
-   The benefits of using this run_command() function over a system() call
-   is that it allows us to save the output of system calls as well as take
-   substrings.
-*/
-void run_command(char *cmd, char *detphrase, int dp_length){
-    #define BUFSIZE 128
-    char buf[BUFSIZE];
-    FILE *fp;
-
-    /*popen() is essentially the same as system()
-    but it saves the output to a file. If the output
-    is null, the command didn't work.
-    */
-    if((fp = popen(cmd, "r")) == NULL){
-        printf("Error");
-    }
-
-    
-    if(fgets(buf, BUFSIZE, fp) != NULL){
-        char detection[(dp_length +1 )]; //one extra char for null terminator
-        strncpy(detection, detphrase, dp_length);
-        detection[dp_length] = '\0'; //place the null terminator
-
-        if(strcmp(detphrase, detection) == 0){ //0 means detphrase = detection
-            vm_score++; //increment the vm_score variable.
-        }
-    }
-
-    if(pclose(fp)){
-        printf("Command not found or exited with error status \n");
-    }
 }
 
 /* registry_check is a modified version of Sudeep Singh's
